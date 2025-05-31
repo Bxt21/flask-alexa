@@ -1,4 +1,4 @@
-import pigpio
+import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import atexit
@@ -7,7 +7,19 @@ import time
 app = Flask(__name__)
 CORS(app)
 
-pi = pigpio.pi() 
+# Detect if running on Raspberry Pi (set this env var true on Pi)
+RUNNING_ON_PI = os.environ.get("RUNNING_ON_PI", "false").lower() == "true"
+
+if RUNNING_ON_PI:
+    import pigpio
+    pi = pigpio.pi()
+else:
+    class MockPi:
+        def set_mode(self, pin, mode): pass
+        def write(self, pin, value): pass
+        def set_servo_pulsewidth(self, pin, pulse): pass
+        def stop(self): pass
+    pi = MockPi()
 
 lights = {"bedroom": 23, "garage": 4, "display": 22, "ground": 10, "function": 21}
 servo_pins = {
@@ -17,12 +29,12 @@ servo_pins = {
 
 # Initialize light pins
 for pin in lights.values():
-    pi.set_mode(pin, pigpio.OUTPUT)
+    pi.set_mode(pin, 1)  # pigpio.OUTPUT = 1
     pi.write(pin, 0)
 
 # Initialize servo pins
 for pin in servo_pins.values():
-    pi.set_mode(pin, pigpio.OUTPUT)
+    pi.set_mode(pin, 1)
     pi.set_servo_pulsewidth(pin, 0)
 
 @app.route("/", methods=["POST", "GET"])
@@ -106,7 +118,7 @@ def control_all_lights(action):
 
 def control_lights(location, action):
     upstairs_lights = ["function", "bedroom"]
-    downstairs_lights = ["display", "ground","garage"]
+    downstairs_lights = ["display", "ground", "garage"]
 
     try:
         if location == "all":
